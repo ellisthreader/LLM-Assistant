@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 import time
 
 import numpy as np
@@ -29,12 +31,21 @@ def synthesize_speech(
 
     for attempt in range(1, max_retries + 1):
         try:
-            response = api_client.audio.speech.create(
-                model=TTS_MODEL,
-                voice=TTS_VOICE,
-                input=text,
-                format="wav",
-            )
+            # Newer SDKs use `response_format`; older ones used `format`.
+            try:
+                response = api_client.audio.speech.create(
+                    model=TTS_MODEL,
+                    voice=TTS_VOICE,
+                    input=text,
+                    response_format="wav",
+                )
+            except TypeError:
+                response = api_client.audio.speech.create(
+                    model=TTS_MODEL,
+                    voice=TTS_VOICE,
+                    input=text,
+                    format="wav",
+                )
             response.stream_to_file(output_path)
             return output_path
         except Exception as exc:
@@ -61,3 +72,35 @@ def play_audio(file_path: str) -> bool:
     except Exception as exc:
         print(f"[Playback] Failed: {exc}")
         return False
+
+
+def synthesize_and_play(
+    text: str,
+    client: OpenAI | None = None,
+    max_retries: int = MAX_RETRIES,
+) -> bool:
+    """Synthesize speech for text and play it immediately."""
+    chunk = text.strip()
+    if not chunk:
+        return False
+
+    tmp_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+
+        audio_path = synthesize_speech(
+            chunk,
+            output_path=tmp_path,
+            client=client,
+            max_retries=max_retries,
+        )
+        if not audio_path:
+            return False
+        return play_audio(audio_path)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
