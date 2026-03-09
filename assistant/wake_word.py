@@ -77,6 +77,7 @@ def _wait_for_porcupine() -> bool:
 def _wait_for_stt_phrase(client: OpenAI | None = None) -> bool:
     phrase = WAKE_WORD_PHRASE.lower().strip()
     print(f"Wake phrase mode active. Say '{WAKE_WORD_PHRASE}' to activate.")
+    consecutive_stt_failures = 0
 
     while True:
         tmp_path = ""
@@ -85,9 +86,21 @@ def _wait_for_stt_phrase(client: OpenAI | None = None) -> bool:
                 tmp_path = tmp.name
 
             record_audio(tmp_path, duration_seconds=WAKE_WORD_LISTEN_SECONDS)
-            text = transcribe_audio(tmp_path, client=client, max_retries=1).lower().strip()
+            text = transcribe_audio(
+                tmp_path,
+                client=client,
+                max_retries=1,
+                log_errors=False,
+            ).lower().strip()
             if not text:
+                consecutive_stt_failures += 1
+                if consecutive_stt_failures % 10 == 0:
+                    print(
+                        "[WakeWord] STT wake check still failing (network/API issue). "
+                        "Continuing to listen..."
+                    )
                 continue
+            consecutive_stt_failures = 0
             if phrase in text:
                 return True
         finally:

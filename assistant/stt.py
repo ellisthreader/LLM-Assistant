@@ -13,6 +13,7 @@ def transcribe_audio(
     audio_path: str,
     client: OpenAI | None = None,
     max_retries: int = MAX_RETRIES,
+    log_errors: bool = True,
 ) -> str:
     """Transcribe speech from a WAV file using OpenAI Whisper."""
     api_client = client or OpenAI(api_key=OPENAI_API_KEY)
@@ -28,10 +29,11 @@ def transcribe_audio(
             text = (getattr(result, "text", "") or "").strip()
             if text:
                 return text
-
-            raise ValueError("Whisper returned an empty transcription")
+            # Empty transcription usually means silence/unclear audio, not an API failure.
+            return ""
         except Exception as exc:
-            print(f"[STT] Attempt {attempt}/{max_retries} failed: {exc}")
+            if log_errors:
+                print(f"[STT] Attempt {attempt}/{max_retries} failed: {exc}")
             if attempt < max_retries:
                 time.sleep(RETRY_DELAY_SECONDS)
 
