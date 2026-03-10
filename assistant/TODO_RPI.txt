@@ -1,0 +1,159 @@
+Raspberry Pi TODO (Setup + Troubleshooting)
+===========================================
+
+Goal: Wake word -> record mic -> STT -> LLM -> TTS -> speaker.
+
+
+1) Update Code On The Pi
+------------------------
+- Ensure your Pi has the latest versions of:
+  - assistant/tts.py
+  - assistant/config.py
+  - assistant/wake_word.py (optional, for wake phrase fallback)
+
+If you keep the project in git:
+- git pull
+
+
+2) Python + Dependencies
+------------------------
+- From the project folder:
+  - python3 -V
+  - python3 -m venv .venv
+  - source .venv/bin/activate
+  - pip install -r requirements.txt
+
+Quick import check:
+- python -c "import sounddevice, numpy, openai; print('ok')"
+
+
+3) Configure Environment (.env)
+-------------------------------
+Create or edit assistant/.env:
+
+- OPENAI_API_KEY=...
+
+Optional (models/voice):
+- MODEL_NAME=gpt-4.1-mini
+- WHISPER_MODEL=whisper-1
+- TTS_MODEL=gpt-4o-mini-tts
+- TTS_VOICE=echo
+
+Wake word config:
+- WAKE_WORD_ENABLED=true
+- WAKE_WORD_ENGINE=porcupine
+- WAKE_WORD_PHRASE=hey luna
+- WAKE_WORD_LISTEN_SECONDS=1.6
+
+Porcupine (if using it):
+- PORCUPINE_ACCESS_KEY=...
+- PORCUPINE_KEYWORD_PATH=/full/path/to/your/keyword.ppn
+
+Audio output selection (important on Pi):
+- AUDIO_OUTPUT_DEVICE=
+  - Leave blank to use default output
+  - Or set to an integer index, e.g. AUDIO_OUTPUT_DEVICE=0
+  - Or set to a substring of a device name, e.g. AUDIO_OUTPUT_DEVICE=USB
+
+
+4) Run The Assistant
+--------------------
+From the assistant folder:
+- source .venv/bin/activate
+- python main.py
+
+
+5) If Wake Word Falls Back To STT
+---------------------------------
+You may see:
+  [WakeWord] Falling back to STT wake phrase detection.
+
+This means Porcupine is not available or not configured.
+Fixes:
+- Ensure pvporcupine is installed (it is in requirements.txt)
+- Set PORCUPINE_ACCESS_KEY in assistant/.env
+- If using a custom keyword model, set PORCUPINE_KEYWORD_PATH
+
+If you want to avoid wake-word complexity while debugging audio:
+- Set WAKE_WORD_ENABLED=false
+(Then it will just record immediately each loop.)
+
+
+6) Fix "Can't Hear TTS" (Most Common Pi Issue)
+----------------------------------------------
+Step A: Confirm the Pi can play ANY audio.
+- speaker-test -t sine -c 2
+or
+- aplay -l
+
+Step B: Find what sounddevice thinks the output device is.
+- python -c "import sounddevice as sd; print('default:', sd.default.device); print(sd.query_devices())"
+
+Step C: Force the correct output device for TTS.
+- In assistant/.env set AUDIO_OUTPUT_DEVICE to:
+  - an index shown by query_devices(), e.g. AUDIO_OUTPUT_DEVICE=3
+  - or a distinctive device name substring
+
+Step D: Common Pi audio routing gotchas.
+- HDMI vs headphone jack vs USB audio:
+  - raspi-config -> System Options -> Audio -> select the right output
+- If using Bluetooth:
+  - pair/connect first; confirm it is the active sink
+
+
+7) If You See "[Playback] Failed: WAV duration too long ..."
+------------------------------------------------------------
+This used to happen when the TTS WAV header reports a fake huge frame count
+(common for streaming WAVs). The code now clamps reads to the actual file size.
+
+If it still happens:
+- Paste the single error line printed by the assistant:
+  [Playback] Failed: ... (file=..., size=... bytes)
+- Also paste:
+  - python -c "import sounddevice as sd; print(sd.query_devices())"
+
+
+8) Quick “Audio Only” Sanity Test (No Wake Word / No STT)
+---------------------------------------------------------
+This isolates speaker output.
+
+- python -c "from tts import synthesize_and_play; synthesize_and_play('Testing one two three.')"
+
+If this fails, the problem is in TTS generation or audio output routing/device selection.
+
+
+9) If You Want It To Start On Boot (Optional)
+---------------------------------------------
+Use a systemd service once everything works manually.
+
+Example (adjust paths):
+- Create /etc/systemd/system/luna-assistant.service with:
+
+  [Unit]
+  Description=Raspberry Pi Voice Assistant
+  After=network-online.target
+  Wants=network-online.target
+
+  [Service]
+  Type=simple
+  WorkingDirectory=/home/pi/Desktop/LLMAssistant/assistant
+  ExecStart=/home/pi/Desktop/LLMAssistant/assistant/.venv/bin/python main.py
+  Restart=on-failure
+  EnvironmentFile=/home/pi/Desktop/LLMAssistant/assistant/.env
+
+  [Install]
+  WantedBy=multi-user.target
+
+Then:
+- sudo systemctl daemon-reload
+- sudo systemctl enable --now luna-assistant
+- sudo journalctl -u luna-assistant -f
+
+
+10) Notes About Time/Date Responses
+-----------------------------------
+If the assistant gives an old date (example: "Saturday, April 27, 2024"),
+it means the model answered without checking current time.
+Fix: implement a "current date/time" tool call or inject system time into the prompt.
+If you want, I can wire that into the assistant so it always answers with the Pi's real date.
+

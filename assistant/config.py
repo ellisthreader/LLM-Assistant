@@ -44,6 +44,12 @@ AUDIO_DTYPE = "int16"
 INPUT_WAV_PATH = "input.wav"
 OUTPUT_WAV_PATH = "response.wav"
 
+# Optional: force the audio output device for TTS playback (sounddevice).
+# Examples:
+# - AUDIO_OUTPUT_DEVICE=0
+# - AUDIO_OUTPUT_DEVICE="USB Audio Device"
+AUDIO_OUTPUT_DEVICE = os.getenv("AUDIO_OUTPUT_DEVICE", "").strip()
+
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 1.5
 
