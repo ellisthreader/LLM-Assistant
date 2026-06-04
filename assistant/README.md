@@ -1,6 +1,8 @@
-# Raspberry Pi Voice Assistant (OpenAI Pipeline)
+# Raspberry Pi LLM Voice Assistant
 
-A Python voice assistant for Raspberry Pi with this pipeline:
+An embedded Python voice-assistant system for Raspberry Pi hardware. The software connects a real microphone and speaker setup to an LLM pipeline so the device can listen, understand spoken requests, respond naturally, and maintain recent conversational context.
+
+Core pipeline:
 
 `Wake Word -> Microphone -> Whisper STT -> GPT LLM -> OpenAI TTS -> Speaker`
 
