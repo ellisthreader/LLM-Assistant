@@ -1,0 +1,17 @@
+[Unit]
+Description=Desk voice assistant
+After=graphical-session.target sound.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/VoiceAssistant
+ExecStart=%h/VoiceAssistant/target/release/desk-assistant
+Restart=on-failure
+RestartSec=3
+Environment=DISPLAY=:0
+# Either export the key here or put it in config.toml:
+# Environment=OPENAI_API_KEY=sk-...
+
+[Install]
+WantedBy=default.target
